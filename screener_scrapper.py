@@ -300,3 +300,42 @@ class ScreenerClient:
             result = result.copy()
             result["peer_company_id"] = peer_ids
         return result
+
+    def full_text_search(self, query):
+
+        url = f"{self.BASE_URL}/full-text-search/"
+
+        r = self.session.get(
+            url,
+            params={"q": query}
+        )
+        r.raise_for_status()
+
+        soup = BeautifulSoup(r.text, "html.parser")
+
+        results = []
+
+        # Each search result block
+        for block in soup.select("div.margin-top-20.margin-bottom-36"):
+
+            company = block.select_one("span.hover-link")
+
+            link = block.select_one(
+                'a[href^="/company/"]'
+            )
+
+            if company and link:
+
+                name = company.get_text(strip=True)
+
+                href = link["href"]
+
+                symbol = href.split("/")[2]
+
+                results.append({
+                    "Company": name,
+                    "Symbol": symbol,
+                    "URL": self.BASE_URL + href
+                })
+
+        return pd.DataFrame(results).drop_duplicates()
