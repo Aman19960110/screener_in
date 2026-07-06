@@ -339,3 +339,139 @@ class ScreenerClient:
                 })
 
         return pd.DataFrame(results).drop_duplicates()
+    def insider_buying(self,page: int | None = None,all_pages: bool = True,) -> pd.DataFrame:
+    
+
+        base_url = f"{self.BASE_URL}/screens/614577/insider-buying/"
+
+        dfs = []
+
+        if all_pages:
+            page = 1
+
+            while True:
+
+                response = self._request(
+                    "GET",
+                    base_url,
+                    params={"page": page},
+                )
+
+                tables = self._tables_from_html(response.text)
+
+                if not tables:
+                    break
+
+                df = tables[0]
+
+                # Stop if page is empty
+                if df.empty:
+                    break
+
+                dfs.append(df)
+
+                # Check if another page exists
+                soup = BeautifulSoup(response.text, "html.parser")
+
+                next_page = soup.find(
+                    "a",
+                    string=re.compile("Next", re.I),
+                )
+
+                if next_page is None:
+                    break
+
+                page += 1
+
+            if not dfs:
+                return pd.DataFrame()
+
+            return pd.concat(dfs, ignore_index=True)
+
+        else:
+
+            page = page or 1
+
+            response = self._request(
+                "GET",
+                base_url,
+                params={"page": page},
+            )
+
+            tables = self._tables_from_html(response.text)
+
+            if not tables:
+                raise ParseError("Unable to parse Insider Buying table.")
+
+            return tables[0]
+
+    def insider_trades(
+    self,
+    year: int | None = None,
+    all_pages: bool = True,
+) -> pd.DataFrame:
+        """
+        Fetch Insider Trades.
+
+        Parameters
+        ----------
+        year : int, optional
+            Year to fetch (e.g. 2026). Defaults to latest.
+        all_pages : bool, default=True
+            Fetch all available pages.
+
+        Returns
+        -------
+        pd.DataFrame
+        """
+
+        params = {}
+
+        if year is not None:
+            params["year"] = year
+
+        dfs = []
+        page = 1
+
+        while True:
+
+            params["page"] = page
+
+            response = self._request(
+                "GET",
+                f"{self.BASE_URL}/trades/insiders/",
+                params=params,
+            )
+
+            tables = self._tables_from_html(response.text)
+
+            if not tables:
+                break
+
+            df = tables[0]
+
+            if df.empty:
+                break
+
+            dfs.append(df)
+
+            if not all_pages:
+                break
+
+            soup = BeautifulSoup(response.text, "html.parser")
+
+            # Look for a "Next" page link
+            next_link = soup.find(
+                "a",
+                string=re.compile(r"next", re.I)
+            )
+
+            if next_link is None:
+                break
+
+            page += 1
+
+        if not dfs:
+            return pd.DataFrame()
+
+        return pd.concat(dfs, ignore_index=True)
